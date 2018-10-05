@@ -1,0 +1,91 @@
+C51 COMPILER V9.59.0.0   OSAL                                                              09/21/2018 08:01:34 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE OSAL
+OBJECT MODULE PLACED IN .\Objects\OSAL.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE ..\osal\OSAL.c OPTIMIZE(9,SPEED) BROWSE INCDIR(..\app;..\port;..\task;..\h
+                    -al;..\osal) DEBUG OBJECTEXTEND PRINT(.\Listings\OSAL.lst) TABS(2) OBJECT(.\Objects\OSAL.obj)
+
+line level    source
+
+   1          #include <string.h>
+   2          #include <stdlib.h>
+   3          #include "comdef.h"
+   4          #include "OSAL.h"
+   5          #include "OSAL_Tasks.h"
+   6          #include "hal_init.h"
+   7          
+   8          uint8 osal_set_event( uint8 task_id, uint16 event_flag )
+   9          {
+  10   1        if ( task_id < tasksCnt ){
+  11   2          halIntState_t   intState;
+  12   2          HAL_ENTER_CRITICAL_SECTION(intState);   
+  13   2          tasksEvents[task_id] |= event_flag;      
+  14   2          HAL_EXIT_CRITICAL_SECTION(intState);   
+  15   2          return ( SUCCESS );
+  16   2        }else{
+  17   2          return ( INVALID_TASK );
+  18   2        }
+  19   1      }
+  20          
+  21          uint8 osal_clear_event( uint8 task_id, uint16 event_flag )
+  22          {
+  23   1        if ( task_id < tasksCnt ){
+  24   2          halIntState_t   intState;
+  25   2          HAL_ENTER_CRITICAL_SECTION(intState);   
+  26   2          tasksEvents[task_id] &= ~(event_flag);     
+  27   2          HAL_EXIT_CRITICAL_SECTION(intState);
+  28   2          return ( SUCCESS );
+  29   2        }else{
+  30   2          return ( INVALID_TASK );
+  31   2        }
+  32   1      }
+  33          
+  34          void osal_run_system( void )
+  35          {
+  36   1        for(;;){      
+  37   2          uint8 idx = 0;
+  38   2          #ifdef WDT_FUNC_ENABLE
+  39   2          CLEAR_WDT();
+  40   2          #endif
+  41   2          Hal_ProcessPoll();
+  42   2          do {
+  43   3            if (tasksEvents[idx]){
+  44   4              break;
+  45   4            }
+  46   3          } while (++idx < tasksCnt);
+  47   2      
+  48   2          if (idx < tasksCnt){
+  49   3            uint16 events = 0,ret=0;
+  50   3            halIntState_t intState;
+  51   3      
+  52   3            HAL_ENTER_CRITICAL_SECTION(intState);
+  53   3            events = tasksEvents[idx];
+  54   3            tasksEvents[idx] = 0;
+C51 COMPILER V9.59.0.0   OSAL                                                              09/21/2018 08:01:34 PAGE 2   
+
+  55   3            HAL_EXIT_CRITICAL_SECTION(intState);
+  56   3      
+  57   3            events = (tasksArr[idx])( idx, events );
+  58   3      
+  59   3            HAL_ENTER_CRITICAL_SECTION(intState);
+  60   3            tasksEvents[idx] |= events;
+  61   3            HAL_EXIT_CRITICAL_SECTION(intState);
+  62   3          }
+  63   2        }
+  64   1      }
+  65          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    258    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      10
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

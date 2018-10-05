@@ -1,0 +1,285 @@
+C51 COMPILER V9.59.0.0   HAL_MSGE                                                          09/19/2018 08:04:13 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE HAL_MSGE
+OBJECT MODULE PLACED IN .\Objects\hal_msge.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE ..\hal\hal_msge.c OPTIMIZE(9,SPEED) BROWSE INCDIR(..\app;..\port;..\task;.
+                    -.\hal;..\osal) DEBUG OBJECTEXTEND PRINT(.\Listings\hal_msge.lst) TABS(2) OBJECT(.\Objects\hal_msge.obj)
+
+line level    source
+
+   1          #include "hal_msge.h"
+   2          #include <string.h>
+   3          
+   4          typedef struct{
+   5            INT8U id:4;
+   6            INT8U mode:4;     
+   7            INT8U sw_sta:1;             /*<switch>*/
+   8            INT8U sup_flag:1;   
+   9            INT8U sw_type:1;            /*<Motor mode switching mode.>*/
+  10            INT8U intensity:5;            /*<Motor strength value>*/
+  11          }Msge_Obj_t;
+  12          
+  13          static XDATA INT8U Motor_Ctr[MSGE_SUM][GROUP_OF_MSGE];
+  14          static XDATA INT8U FreCnt[MSGE_SUM],Mode_SwCnt[MSGE_SUM];
+  15          static XDATA INT16U TimeCnt[MSGE_SUM],TimeCntFlag[MSGE_SUM];
+  16          static XDATA INT16U AutoSwitchCnt[MSGE_SUM];
+  17          static XDATA Msge_Obj_t Msge_Obj[MSGE_SUM];
+  18          
+  19          static unsigned char Hal_MsgeOpen(unsigned char id)
+  20          {
+  21   1        if(id > MSGE_SUM)
+  22   1          return PARA_ERROR;
+  23   1        if(id == 0){
+  24   2          Msge_Obj[id].intensity = DEFAULT_MSGE_INTEN;
+  25   2          Msge_Obj[id].mode = DEFAULE_MSGE_MODE;
+  26   2          Msge_Obj[id].sup_flag = False;
+  27   2          Msge_Obj[id].sw_sta = True;
+  28   2          Msge_Obj[id].sw_type = DEFAULT_MSGE_CTL_TYPE;
+  29   2          return SUCCEED;
+  30   2        }
+  31   1        return PARA_ERROR;
+  32   1      }
+  33          
+  34          static unsigned char Hal_MsgeClose(unsigned char id)
+  35          {
+  36   1        if(id > MSGE_SUM)
+  37   1          return PARA_ERROR;
+  38   1        Msge_Obj[id].sw_sta = False;
+  39   1        if(id == 0){
+  40   2          Set_MotorA_Out(0);
+  41   2          Set_MotorB_Out(0);
+  42   2        }
+  43   1        return SUCCEED;
+  44   1      }
+  45          
+  46          static unsigned char Hal_MsgeSupend(unsigned char id)
+  47          {
+  48   1        if(id > MSGE_SUM)
+  49   1          return PARA_ERROR;
+  50   1        Msge_Obj[id].sup_flag = TRUE;
+  51   1        Port_MsgeSet(id, 0, 0);
+  52   1        Port_MsgeSet(id, 1, 0);
+  53   1        return SUCCEED;
+  54   1      }
+C51 COMPILER V9.59.0.0   HAL_MSGE                                                          09/19/2018 08:04:13 PAGE 2   
+
+  55          
+  56          static unsigned char Hal_MsgeResume(unsigned char id)
+  57          {
+  58   1        if(id > MSGE_SUM)
+  59   1          return PARA_ERROR;
+  60   1        Msge_Obj[id].sup_flag = FALSE;
+  61   1        return SUCCEED;
+  62   1      }
+  63          
+  64          static unsigned char Hal_MsgeGetRunSta(unsigned char id,unsigned char *sta)
+  65          {
+  66   1        if(id > MSGE_SUM)
+  67   1          return PARA_ERROR;
+  68   1        *sta = Msge_Obj[id].sw_sta && (!Msge_Obj[id].sup_flag);
+  69   1        return SUCCEED;
+  70   1      }
+  71          
+  72          static unsigned char Hal_MsgeSetMode(unsigned char id,unsigned char mode)
+  73          {
+  74   1        if(id > MSGE_SUM)
+  75   1          return PARA_ERROR;
+  76   1        Msge_Obj[id].mode = mode;
+  77   1        return SUCCEED;
+  78   1      }
+  79          
+  80          static unsigned char Hal_MsgeSetIntensity(unsigned char id,unsigned char inten)
+  81          {
+  82   1        if(id > MSGE_SUM)
+  83   1          return PARA_ERROR;
+  84   1        Msge_Obj[id].intensity = inten;
+  85   1        return SUCCEED;
+  86   1      }
+  87          
+  88          unsigned char Hal_MsgeInit(unsigned char sum)
+  89          {
+  90   1        int i;
+  91   1        if(sum > MSGE_SUM)
+  92   1          return PARA_ERROR;
+  93   1        
+  94   1        for(i = 0; i < MSGE_SUM;i ++){
+  95   2          if(Port_MsgeInit(i) != i)
+  96   2            break;
+  97   2          memset(&Msge_Obj[i],0,sizeof(Msge_Obj_t));
+  98   2          Msge_Obj[i].id = i;
+  99   2          AutoSwitchCnt[i] = 0;
+ 100   2          TimeCnt[i] = 0; 
+ 101   2          TimeCntFlag[i] = 0;
+ 102   2          FreCnt[i] = 0;
+ 103   2          Mode_SwCnt[i] = 0;
+ 104   2        }
+ 105   1        
+ 106   1        if(i != sum)
+ 107   1          return SET_ERROR;
+ 108   1        else
+ 109   1          return SUCCEED;
+ 110   1      }
+ 111          
+ 112          unsigned char Hal_MsgePoll(unsigned char sum)
+ 113          {
+ 114   1        int i;
+ 115   1        if(sum > MSGE_SUM)
+ 116   1          return PARA_ERROR;
+C51 COMPILER V9.59.0.0   HAL_MSGE                                                          09/19/2018 08:04:13 PAGE 3   
+
+ 117   1        
+ 118   1        for(i = 0;i < sum ;i ++){
+ 119   2          if(Msge_Obj[i].sw_type == AUTO_CTR){
+ 120   3            if(AutoSwitchCnt[i]  > M_SWITCH_VALUES){
+ 121   4              AutoSwitchCnt[i] = 0; 
+ 122   4              TimeCnt[i] = 0;
+ 123   4              if(Msge_Obj[i].mode ++ > M_MODE_3){
+ 124   5                Mode_SwCnt[i] = 0;
+ 125   5                Msge_Obj[i].mode = M_MODE_1;
+ 126   5              }
+ 127   4            }
+ 128   3          }
+ 129   2      
+ 130   2          switch(Msge_Obj[i].mode){
+ 131   3            case M_MODE_1:{
+ 132   4              TimeCntFlag[i] = True;
+ 133   4              if(TimeCnt[i] > M_500MS){ 
+ 134   5                TimeCnt[i] = 0;
+ 135   5                if(Mode_SwCnt[i] ++ >= 2){
+ 136   6                  Mode_SwCnt[i] = 0;
+ 137   6                }
+ 138   5                Motor_Ctr[i][NUM_0] = (Mode_SwCnt[i] == 0) ? True:False;
+ 139   5                Motor_Ctr[i][NUM_1] = (Mode_SwCnt[i] == 1) ? True:False;
+ 140   5              }
+ 141   4              break;
+ 142   4            }
+ 143   3            case M_MODE_2:{
+ 144   4              TimeCntFlag[i] = True;
+ 145   4              if(TimeCnt[i] > M_1S){
+ 146   5                Mode_SwCnt[i] = !Mode_SwCnt[i];
+ 147   5                Motor_Ctr[i][NUM_0] = (Mode_SwCnt[i]) ? True:False;
+ 148   5                Motor_Ctr[i][NUM_1] = !Motor_Ctr[i][0];
+ 149   5                TimeCnt[i] = 0;
+ 150   5              }
+ 151   4              break;
+ 152   4            }
+ 153   3            case M_MODE_3:{
+ 154   4              TimeCntFlag[i] = True;
+ 155   4              if(TimeCnt[i] > M_1S){
+ 156   5                TimeCnt[i] = 0;
+ 157   5                Mode_SwCnt[i] =!Mode_SwCnt[i];
+ 158   5                Motor_Ctr[i][NUM_0] = (Mode_SwCnt[i]) ? True:False;
+ 159   5                Motor_Ctr[i][NUM_1] = (Mode_SwCnt[i]) ? True:False;
+ 160   5              }
+ 161   4              break;
+ 162   4            }
+ 163   3            default:{
+ 164   4              Msge_Obj[i].mode = M_MODE_1;
+ 165   4              break;
+ 166   4            }
+ 167   3          }
+ 168   2        
+ 169   2        }
+ 170   1        return SUCCEED;
+ 171   1      }
+ 172          
+ 173          unsigned char Hal_MsgeTimeHdl(unsigned char sum)
+ 174          {
+ 175   1        int i;
+ 176   1        if(sum > MSGE_SUM)
+ 177   1          return PARA_ERROR;
+ 178   1        for(i = 0;i < MSGE_SUM;i ++){
+C51 COMPILER V9.59.0.0   HAL_MSGE                                                          09/19/2018 08:04:13 PAGE 4   
+
+ 179   2          if(Msge_Obj[i].sw_sta && (!Msge_Obj[i].sup_flag)){
+ 180   3            FreCnt[i] ++;
+ 181   3          
+ 182   3            if(FreCnt[i] < Msge_Obj[i].intensity){
+ 183   4              if(Motor_Ctr[i][NUM_0]){
+ 184   5                Port_MsgeSet(i, NUM_0, 1);
+ 185   5              }else{
+ 186   5                Port_MsgeSet(i, NUM_0, 0);
+ 187   5              }
+ 188   4              if(Motor_Ctr[i][NUM_1]){
+ 189   5                Port_MsgeSet(i, NUM_1, 1);
+ 190   5              }else{
+ 191   5                Port_MsgeSet(i, NUM_1, 0);
+ 192   5              }
+ 193   4            }else {
+ 194   4              Port_MsgeSet(i, NUM_0, 0);
+ 195   4              Port_MsgeSet(i, NUM_1, 0);
+ 196   4              if(FreCnt[i] > 13){       
+ 197   5                FreCnt[i] = 0;
+ 198   5              }
+ 199   4            }
+ 200   3      
+ 201   3            if(TimeCntFlag[i]){
+ 202   4              TimeCnt[i] ++;
+ 203   4            }
+ 204   3            
+ 205   3            if(Msge_Obj[i].sw_type == AUTO_CTR){
+ 206   4              AutoSwitchCnt[i] ++;
+ 207   4            }
+ 208   3          }
+ 209   2        }
+ 210   1        
+ 211   1        
+ 212   1        return SUCCEED;
+ 213   1      }
+ 214          
+ 215          unsigned char Hal_MsgeControl(unsigned char id,unsigned char cmd,void *arg)
+ 216          {
+ 217   1        if(id > MSGE_SUM)
+ 218   1          return PARA_ERROR;
+ 219   1        switch(cmd){
+ 220   2          case MSGE_CMD_OPEN:{
+ 221   3            return Hal_MsgeOpen(id);
+ 222   3          }
+ 223   2          
+ 224   2          case MSGE_CMD_CLOSE:{
+ 225   3            return Hal_MsgeClose(id);
+ 226   3          }
+ 227   2      
+ 228   2          case MSGE_CMD_GET_RUN_STA:{
+ 229   3            return Hal_MsgeGetRunSta(id, (unsigned char*)arg);
+ 230   3          }
+ 231   2      
+ 232   2          case MSGE_CMD_SUPEND:{
+ 233   3            return Hal_MsgeSupend(id);
+ 234   3          }
+ 235   2      
+ 236   2          case MSGE_CMD_RESUME:{
+ 237   3            return Hal_MsgeResume(id);
+ 238   3          }
+ 239   2      
+ 240   2          case MSGE_CMD_SET_MODE:{
+C51 COMPILER V9.59.0.0   HAL_MSGE                                                          09/19/2018 08:04:13 PAGE 5   
+
+ 241   3            unsigned char mode = *((unsigned char*)arg);
+ 242   3            return Hal_MsgeSetMode(id, mode);
+ 243   3          }
+ 244   2      
+ 245   2          case MSGE_CMD_SET_INTENSITY:{
+ 246   3            unsigned char inten = *((unsigned char*)arg);
+ 247   3            return Hal_MsgeSetIntensity(id, inten);
+ 248   3          }
+ 249   2          
+ 250   2          default:
+ 251   2            return PARA_ERROR;
+ 252   2        }
+ 253   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1363    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     12    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      14
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

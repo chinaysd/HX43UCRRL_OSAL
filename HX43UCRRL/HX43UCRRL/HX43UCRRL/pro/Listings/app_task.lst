@@ -1,0 +1,551 @@
+C51 COMPILER V9.59.0.0   APP_TASK                                                          09/21/2018 08:01:34 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE APP_TASK
+OBJECT MODULE PLACED IN .\Objects\app_task.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE ..\task\app_task.c OPTIMIZE(9,SPEED) BROWSE INCDIR(..\app;..\port;..\task;
+                    -..\hal;..\osal) DEBUG OBJECTEXTEND PRINT(.\Listings\app_task.lst) TABS(2) OBJECT(.\Objects\app_task.obj)
+
+line level    source
+
+   1          #include "app_task.h"
+   2          #include "pushrod_task.h"
+   3          #include "msge_task.h"
+   4          #include "heat_cool_task.h"
+   5          #include "hal_init.h"
+   6          #include "sys_config.h"
+   7          
+   8          #include "OSAL.h"
+   9          #include "osal_timer.h"
+  10          
+  11          #include <string.h>
+  12          #include <stdlib.h>
+  13          
+  14          static unsigned char App_TaskID;
+  15          static XDATA App_Obj_t App_Obj;
+  16          
+  17          #define SET_KEY_LED(X)            (App_Obj.led_sta |= ((INT16U)X))
+  18          #define CLR_KEY_LED(X)            (App_Obj.led_sta &= ~((INT16U)X))
+  19          
+  20          static int App_SentMsg(unsigned int cont){ 
+  21   1        static unsigned char send_buf[BUF_SIZE];
+  22   1        memset((void*)send_buf,0,BUF_SIZE);
+  23   1        send_buf[0] = START_FIELD;
+  24   1        send_buf[1] = MSG_ID;
+  25   1        send_buf[2] = Get_High(cont); 
+  26   1        send_buf[3] = Get_Low(cont); 
+  27   1        send_buf[4] = (INT8U)(START_FIELD + MSG_ID + cont/256 + cont%256);
+  28   1        send_buf[5] = Get_High(STOP_MESSAGE);
+  29   1        send_buf[6]  = Get_Low(STOP_MESSAGE);
+  30   1        Hal_UartSendBuf(UART0_ID, send_buf, BUF_SIZE);
+  31   1        return 0; 
+  32   1      }
+  33          
+  34          static void App_UartRxHandle(void)
+  35          {
+  36   1        App_Obj.rev_buf.buf[App_Obj.rev_buf.len ++] = SBUF;
+  37   1      
+  38   1        if(App_Obj.rev_buf.buf[0] != START_FIELD){
+  39   2          memset((void*)&App_Obj.rev_buf,0,sizeof(Rev_Buf_t));
+  40   2          App_Obj.get_key = 0;
+  41   2          return ;
+  42   2        }
+  43   1        
+  44   1        if(App_Obj.rev_buf.len >= BUF_SIZE){
+  45   2          if(App_Obj.rev_buf.buf[1] != MSG_ID){
+  46   3            memset((void*)&App_Obj.rev_buf,0,sizeof(Rev_Buf_t));
+  47   3            App_Obj.get_key = 0;
+  48   3            return ;
+  49   3          }
+  50   2      
+  51   2          if(App_Obj.rev_buf.buf[BUF_SIZE - 2] != 0x0d || App_Obj.rev_buf.buf[BUF_SIZE - 1] != 0x0a){
+  52   3            memset((void*)&App_Obj.rev_buf,0,sizeof(Rev_Buf_t));
+  53   3            App_Obj.get_key = 0;
+  54   3            return ;
+C51 COMPILER V9.59.0.0   APP_TASK                                                          09/21/2018 08:01:34 PAGE 2   
+
+  55   3          }
+  56   2          
+  57   2          if(App_Obj.rev_buf.buf[4] != (App_Obj.rev_buf.buf[0] + App_Obj.rev_buf.buf[1] + App_Obj.rev_buf.buf[2] +
+             - App_Obj.rev_buf.buf[3])){
+  58   3            memset((void*)&App_Obj.rev_buf,0,sizeof(Rev_Buf_t));
+  59   3            App_Obj.get_key = 0;
+  60   3            return ;
+  61   3          }
+  62   2          
+  63   2          App_Obj.get_key = (INT16U)App_Obj.rev_buf.buf[2] << 8 |App_Obj.rev_buf.buf[3];  
+  64   2          osal_set_event(App_TaskID, EVENT_REV_MSG);
+  65   2          memset((void*)&App_Obj.rev_buf,0,sizeof(Rev_Buf_t));
+  66   2        }
+  67   1      }
+  68          
+  69          static void TimeHandle(void)
+  70          {
+  71   1        OSAL_TimerUpdata();
+  72   1        Hal_MsgeTimeHdl(MSGE_SUM);
+  73   1      }
+  74          
+  75          /**
+  76            @brief:Key function area
+  77          */
+  78          static void Light_Handle(void)
+  79          {
+  80   1        #ifdef LED_FUNC_ENABLE
+  81   1        if(!App_Obj.lock_flag){   
+  82   2          OSAL_ReStartTime(App_TaskID, EVENT_SYS_AUTO_CLS_MSG);
+  83   2          if(App_Obj.foot_led_sta){
+  84   3            App_Obj.foot_led_sta = False;
+  85   3            LED1_PIN = OFF;
+  86   3            F_LED_PIN = OFF;
+  87   3            CLR_KEY_LED(LIGHT_LED_MAP);
+  88   3            CLR_KEY_LED(BACK_LIGHT);
+  89   3          }else{
+  90   3            App_Obj.foot_led_sta = True;
+  91   3            LED1_PIN = ON;
+  92   3            F_LED_PIN = ON;
+  93   3            SET_KEY_LED(BACK_LIGHT);
+  94   3            SET_KEY_LED(LIGHT_LED_MAP);
+  95   3          }
+  96   2        }
+  97   1        #endif
+  98   1      }
+  99          
+ 100          static void Warn_Handle(void)
+ 101          {
+ 102   1        #ifdef WARN_FUNC_ENABLE 
+ 103   1        if(!App_Obj.lock_flag){   
+ 104   2          OSAL_ReStartTime(App_TaskID, EVENT_SYS_AUTO_CLS_MSG);
+ 105   2          if(App_Obj.warn_sta){
+ 106   3            App_Obj.warn_sta = False;
+ 107   3            WARN1_PIN = OFF;      
+ 108   3            OSAL_StopTimer(App_TaskID, EVENT_WARN_AUTO_CLS_MSG);
+ 109   3            CLR_KEY_LED(WARN_LED_MAP);
+ 110   3          }else{
+ 111   3            App_Obj.warn_sta = True;
+ 112   3            WARN1_PIN = ON;
+ 113   3            SET_KEY_LED(WARN_LED_MAP);      
+ 114   3            OSAL_StartTimer(App_TaskID, EVENT_WARN_AUTO_CLS_MSG,WARN_AUTO_CLOSE);
+ 115   3          }
+C51 COMPILER V9.59.0.0   APP_TASK                                                          09/21/2018 08:01:34 PAGE 3   
+
+ 116   2        }
+ 117   1        #endif
+ 118   1      }
+ 119          
+ 120          static void Msge_Handle(void)
+ 121          {
+ 122   1        #ifdef MSGE_FUNC_ENABLE 
+ 123   1        if(!App_Obj.lock_flag){   
+ 124   2          OSAL_ReStartTime(App_TaskID, EVENT_SYS_AUTO_CLS_MSG);
+ 125   2          if(App_Obj.moto_sta){
+ 126   3            App_Obj.moto_sta = FALSE;
+ 127   3            osal_clear_event(Msge_TaskGetID(), EVENT_MSGE_A_OPEN);
+ 128   3            osal_set_event(Msge_TaskGetID(), EVENT_MSGE_A_CLOSE);     
+ 129   3            OSAL_StopTimer(App_TaskID, EVENT_MSGE_AUTO_CLS_MSG);
+ 130   3            CLR_KEY_LED(MSGE_LED_MAP);
+ 131   3          }else{
+ 132   3            App_Obj.moto_sta = TRUE;
+ 133   3            osal_clear_event(Msge_TaskGetID(), EVENT_MSGE_A_CLOSE);
+ 134   3            osal_set_event(Msge_TaskGetID(), EVENT_MSGE_A_OPEN);      
+ 135   3            OSAL_StartTimer(App_TaskID, EVENT_MSGE_AUTO_CLS_MSG, MASS_AUTO_CLOSE);
+ 136   3            SET_KEY_LED(MSGE_LED_MAP);
+ 137   3          }
+ 138   2        }
+ 139   1        #endif
+ 140   1      }
+ 141          
+ 142          static void Cool_Handle(void)
+ 143          {
+ 144   1        #ifdef COOL_FUNC_ENABLE
+ 145   1        if(!App_Obj.lock_flag){   
+ 146   2          OSAL_ReStartTime(App_TaskID, EVENT_SYS_AUTO_CLS_MSG);
+ 147   2          if(App_Obj.cool_flag){
+ 148   3            App_Obj.cool_flag = FALSE;
+ 149   3            osal_clear_event(HeatCool_TaskGetID(),EVENT_COOL_A_OPEN);
+ 150   3            osal_set_event(HeatCool_TaskGetID(),EVENT_HEAT_COOL_A_CLOSE);     
+ 151   3            OSAL_StopTimer(App_TaskID, EVENT_COOL_AUTO_CLS_MSG);
+ 152   3            CLR_KEY_LED(COOL_LED_MAP);
+ 153   3          }else{
+ 154   3            App_Obj.cool_flag = TRUE;
+ 155   3            osal_clear_event(HeatCool_TaskGetID(),EVENT_HEAT_COOL_A_CLOSE);
+ 156   3            osal_set_event(HeatCool_TaskGetID(),EVENT_COOL_A_OPEN); 
+ 157   3            OSAL_StartTimer(App_TaskID, EVENT_COOL_AUTO_CLS_MSG,COOL_AUTO_CLOSE);
+ 158   3            SET_KEY_LED(COOL_LED_MAP);
+ 159   3          }
+ 160   2        }
+ 161   1        #endif
+ 162   1      }
+ 163          
+ 164          static void Heat_Handle(void)
+ 165          {
+ 166   1        #ifdef HEAT_FUNC_ENABLE
+              
+                #endif
+ 169   1      }
+ 170          
+ 171          static void Pushrod_HeadCloseHandle(void)
+ 172          {
+ 173   1        #ifdef PUSHROD_HEAD_FUNC_ENABLE
+ 174   1        if(!App_Obj.lock_flag){   
+ 175   2          OSAL_ReStartTime(App_TaskID, EVENT_SYS_AUTO_CLS_MSG);
+ 176   2          if(App_Obj.cool_flag){
+ 177   3            osal_set_event(HeatCool_TaskGetID(),EVENT_HEAT_COOL_A_SUPEND);
+C51 COMPILER V9.59.0.0   APP_TASK                                                          09/21/2018 08:01:34 PAGE 4   
+
+ 178   3          }
+ 179   2          osal_set_event(Pushrod_TaskGetID(),EVNET_PUSHROD_A_CLOSE);
+ 180   2        }
+ 181   1        #endif
+ 182   1      }
+ 183          
+ 184          static void Pushrod_HeadOpenHandle(void)
+ 185          {
+ 186   1        #ifdef PUSHROD_HEAD_FUNC_ENABLE
+ 187   1        if(!App_Obj.lock_flag){     
+ 188   2          OSAL_ReStartTime(App_TaskID, EVENT_SYS_AUTO_CLS_MSG);
+ 189   2          if(App_Obj.cool_flag){
+ 190   3            osal_set_event(HeatCool_TaskGetID(),EVENT_HEAT_COOL_A_SUPEND);
+ 191   3          }   
+ 192   2          osal_set_event(Pushrod_TaskGetID(),EVNET_PUSHROD_A_OPEN);
+ 193   2        }
+ 194   1        #endif
+ 195   1      }
+ 196          
+ 197          static void Pushrod_LumbarCloseHandle(void)
+ 198          { 
+ 199   1        #ifdef PUSHROD_LUMBAR_FUNC_ENABLE
+ 200   1        if(!App_Obj.lock_flag){   
+ 201   2          OSAL_ReStartTime(App_TaskID, EVENT_SYS_AUTO_CLS_MSG);
+ 202   2          if(App_Obj.cool_flag){
+ 203   3            osal_set_event(HeatCool_TaskGetID(),EVENT_HEAT_COOL_A_SUPEND);
+ 204   3          }
+ 205   2          osal_set_event(Pushrod_TaskGetID(),EVNET_PUSHROD_B_CLOSE);    
+ 206   2        }
+ 207   1        #endif
+ 208   1      }
+ 209          
+ 210          static void Pushrod_LumbarOpenHandle(void)
+ 211          { 
+ 212   1        #ifdef PUSHROD_LUMBAR_FUNC_ENABLE
+ 213   1        if(!App_Obj.lock_flag){   
+ 214   2          OSAL_ReStartTime(App_TaskID, EVENT_SYS_AUTO_CLS_MSG);
+ 215   2          if(App_Obj.cool_flag){
+ 216   3            osal_set_event(HeatCool_TaskGetID(),EVENT_HEAT_COOL_A_SUPEND);
+ 217   3          }
+ 218   2          osal_set_event(Pushrod_TaskGetID(),EVNET_PUSHROD_B_OPEN); 
+ 219   2        }
+ 220   1        #endif
+ 221   1      }
+ 222          
+ 223          static void Pushrod_ResetHandle(void)
+ 224          {
+ 225   1        #ifdef PUSHROD_RESET_FUNC_ENABLE
+ 226   1        if(!App_Obj.lock_flag){       
+ 227   2          OSAL_ReStartTime(App_TaskID, EVENT_SYS_AUTO_CLS_MSG);
+ 228   2          if(App_Obj.cool_flag){
+ 229   3            osal_set_event(HeatCool_TaskGetID(),EVENT_HEAT_COOL_A_SUPEND);
+ 230   3          }
+ 231   2          OSAL_StopTimer(App_TaskID,EVENT_RESET_MSG);
+ 232   2          OSAL_StartTimer(App_TaskID,EVENT_RESET_MSG,LONG_PRESS_VALUE);
+ 233   2          App_Obj.reset_det_flag = TRUE;
+ 234   2        }
+ 235   1        #endif
+ 236   1      }
+ 237          
+ 238          static void LockKey_Handle(void)
+ 239          {
+C51 COMPILER V9.59.0.0   APP_TASK                                                          09/21/2018 08:01:34 PAGE 5   
+
+ 240   1        OSAL_StopTimer(App_TaskID,EVENT_KEY_LOCK_MSG);
+ 241   1        OSAL_StartTimer(App_TaskID,EVENT_KEY_LOCK_MSG,LONG_PRESS_VALUE);
+ 242   1        App_Obj.lock_det_flag = TRUE;
+ 243   1      }
+ 244          
+ 245          static void Key_Handle(void){
+ 246   1        switch(App_Obj.get_key){
+ 247   2          case KEY0_VALUE:{
+ 248   3            if(App_Obj.cur_key != KEY0_VALUE){
+ 249   4              App_Obj.cur_key = KEY0_VALUE;
+ 250   4              /*key handle*/
+ 251   4            }
+ 252   3            break;
+ 253   3          }
+ 254   2          case KEY1_VALUE:{
+ 255   3            if(App_Obj.cur_key != KEY1_VALUE){
+ 256   4              App_Obj.cur_key = KEY1_VALUE;
+ 257   4              /*key handle*/
+ 258   4              Pushrod_LumbarCloseHandle();  
+ 259   4            }
+ 260   3            break;
+ 261   3          } 
+ 262   2          case KEY2_VALUE:{
+ 263   3            if(App_Obj.cur_key != KEY2_VALUE){
+ 264   4              App_Obj.cur_key = KEY2_VALUE;
+ 265   4              /*key handle*/
+ 266   4              Pushrod_LumbarOpenHandle(); 
+ 267   4            }
+ 268   3            break;
+ 269   3          }
+ 270   2          case KEY3_VALUE:{
+ 271   3            if(App_Obj.cur_key != KEY3_VALUE){
+ 272   4              App_Obj.cur_key = KEY3_VALUE;
+ 273   4              /*key handle*/
+ 274   4              Pushrod_HeadCloseHandle();    
+ 275   4            }
+ 276   3            break;
+ 277   3          }
+ 278   2          case KEY4_VALUE:{
+ 279   3            if(App_Obj.cur_key != KEY4_VALUE){
+ 280   4              App_Obj.cur_key = KEY4_VALUE;
+ 281   4              /*key handle*/
+ 282   4              Pushrod_HeadOpenHandle();   
+ 283   4            }
+ 284   3            break;
+ 285   3          }
+ 286   2          case KEY5_VALUE:{
+ 287   3            if(App_Obj.cur_key != KEY5_VALUE){
+ 288   4              App_Obj.cur_key = KEY5_VALUE;
+ 289   4              /*key handle*/
+ 290   4              Pushrod_ResetHandle();
+ 291   4            }
+ 292   3            break;
+ 293   3          }
+ 294   2          case KEY6_VALUE:{
+ 295   3            if(App_Obj.cur_key != KEY6_VALUE){
+ 296   4              App_Obj.cur_key = KEY6_VALUE;
+ 297   4              /*key handle*/
+ 298   4              LockKey_Handle();
+ 299   4            }
+ 300   3            break;
+ 301   3          }
+C51 COMPILER V9.59.0.0   APP_TASK                                                          09/21/2018 08:01:34 PAGE 6   
+
+ 302   2          case KEY7_VALUE:{
+ 303   3            if(App_Obj.cur_key != KEY7_VALUE){
+ 304   4              App_Obj.cur_key = KEY7_VALUE;
+ 305   4              /*key handle*/
+ 306   4              
+ 307   4            }
+ 308   3            break;
+ 309   3          }
+ 310   2          default:{
+ 311   3            if(App_Obj.cur_key){
+ 312   4              unsigned char sup_flag = 0;
+ 313   4              App_Obj.cur_key = 0;
+ 314   4              #ifdef PUSHROD_FUNC_ENABLE
+ 315   4              osal_set_event(Pushrod_TaskGetID(),EVNET_PUSHROD_STOP);
+ 316   4              #endif
+ 317   4              if(App_Obj.lock_det_flag){
+ 318   5                App_Obj.lock_det_flag = FALSE;
+ 319   5                OSAL_StopTimer(App_TaskID,EVENT_KEY_LOCK_MSG);  
+ 320   5                #ifdef LED_FUNC_ENABLE
+ 321   5                Light_Handle();
+ 322   5                #endif
+ 323   5              }
+ 324   4              if(App_Obj.reset_det_flag){
+ 325   5                App_Obj.reset_det_flag = FALSE;
+ 326   5                OSAL_StopTimer(App_TaskID,EVENT_RESET_MSG);
+ 327   5                #ifdef COOL_FUNC_ENABLE
+ 328   5                Cool_Handle();
+ 329   5                #endif
+ 330   5              }
+ 331   4              Hal_HeatCoolControl(0, HC_CMD_GET_SUPED_STA, (void*)&sup_flag);
+ 332   4              if(sup_flag){
+ 333   5                osal_set_event(HeatCool_TaskGetID(),EVENT_HEAT_COOL_A_RESUME);
+ 334   5              }
+ 335   4            }
+ 336   3            break;
+ 337   3          }
+ 338   2        }
+ 339   1      }
+ 340          
+ 341          unsigned char App_TaskInit(unsigned char task_id)
+ 342          {
+ 343   1        App_TaskID = task_id;
+ 344   1        #ifdef LED_FUNC_ENABLE
+ 345   1          /*<½ÅµÆ>*/
+ 346   1          SET_OUTPUT(P0,0);
+ 347   1          SET_OUTPUT(P0,1);
+ 348   1          /*<¸½±­½ÅµÆ>*/
+ 349   1          SET_OUTPUT(P2,5);
+ 350   1        #endif
+ 351   1      
+ 352   1        #ifdef WARN_FUNC_ENABLE
+ 353   1          SET_OUTPUT(P0,4);
+ 354   1          SET_OUTPUT(P0,5);
+ 355   1        #endif
+ 356   1        Hal_RegUartRxHdl(UART0_ID,App_UartRxHandle);
+ 357   1        memset(&App_Obj,0,sizeof(App_Obj_t));
+ 358   1        SET_KEY_LED(HEAD_OPEN_LED_MAP);
+ 359   1        SET_KEY_LED(HEAD_CLOSE_LED_MAP);
+ 360   1        SET_KEY_LED(LUMBAR_OPEN_LED_MAP);
+ 361   1        SET_KEY_LED(LUMBAR_CLOSE_LED_MAP);
+ 362   1        Hal_RegTimeHdl(TimeHandle);
+ 363   1        
+C51 COMPILER V9.59.0.0   APP_TASK                                                          09/21/2018 08:01:34 PAGE 7   
+
+ 364   1        OSAL_StartTimer(App_TaskID, EVENT_SYS_AUTO_CLS_MSG, SYSTEM_AUTO_CLOSE);
+ 365   1        return SUCCEED;
+ 366   1      }
+ 367          
+ 368          unsigned int App_TaskProcessEvent(unsigned char task_id,unsigned int events)
+ 369          { 
+ 370   1        (void)task_id;
+*** WARNING C275 IN LINE 370 OF ..\task\app_task.c: expression with possibly no effect
+ 371   1        if(events & EVENT_REV_MSG){ 
+ 372   2          Key_Handle();   
+ 373   2          App_SentMsg(App_Obj.led_sta);
+ 374   2          return (events ^ EVENT_REV_MSG);
+ 375   2        }
+ 376   1        
+ 377   1        if(events & EVENT_KEY_LOCK_MSG){
+ 378   2          App_Obj.lock_det_flag= False;   
+ 379   2          if(App_Obj.lock_flag){      
+ 380   3            App_Obj.lock_flag = FALSE;
+ 381   3            if(App_Obj.sys_auto_cls_flag){
+ 382   4              App_Obj.sys_auto_cls_flag = False;
+ 383   4              OSAL_StartTimer(App_TaskID, EVENT_SYS_AUTO_CLS_MSG,SYSTEM_AUTO_CLOSE);
+ 384   4            }
+ 385   3            CLR_KEY_LED(LOCK_LED_MAP);
+ 386   3            #if PUSHROD_SUM == 1
+                      SET_KEY_LED(HEAD_OPEN_LED_MAP);
+                      SET_KEY_LED(HEAD_CLOSE_LED_MAP);
+                    #endif
+ 390   3            #if PUSHROD_SUM == 2
+ 391   3              SET_KEY_LED(HEAD_OPEN_LED_MAP);
+ 392   3              SET_KEY_LED(HEAD_CLOSE_LED_MAP);
+ 393   3              SET_KEY_LED(LUMBAR_OPEN_LED_MAP);
+ 394   3              SET_KEY_LED(LUMBAR_CLOSE_LED_MAP);
+ 395   3            #endif
+ 396   3            #ifdef WARN_FUNC_ENABLE
+ 397   3              if(App_Obj.warn_sta){
+ 398   4                SET_KEY_LED(WARN_LED_MAP);
+ 399   4              }
+ 400   3            #endif
+ 401   3            #ifdef MSGE_FUNC_ENABLE
+ 402   3              if(App_Obj.moto_sta){
+ 403   4                SET_KEY_LED(MSGE_LED_MAP);
+ 404   4              }
+ 405   3            #endif
+ 406   3            #ifdef LED_FUNC_ENABLE
+ 407   3              if(App_Obj.foot_led_sta){
+ 408   4                SET_KEY_LED(LIGHT_LED_MAP);
+ 409   4              }
+ 410   3            #endif
+ 411   3            #ifdef COOL_FUNC_ENABLE
+ 412   3              if(App_Obj.cool_flag){
+ 413   4                SET_KEY_LED(COOL_LED_MAP);
+ 414   4              }
+ 415   3            #endif
+ 416   3            #ifdef HEAT_FUNC_ENABLE
+                      if(App_Obj.heat_flag){
+                        SET_KEY_LED(HEAT_LED_MAP);
+                      }
+                    #endif
+ 421   3          }else{
+ 422   3            App_Obj.lock_flag = True;
+ 423   3            OSAL_ReStartTime(App_TaskID, EVENT_SYS_AUTO_CLS_MSG);
+ 424   3            CLR_KEY_LED(~LOCK_LED_MAP);   
+C51 COMPILER V9.59.0.0   APP_TASK                                                          09/21/2018 08:01:34 PAGE 8   
+
+ 425   3            if(App_Obj.foot_led_sta){
+ 426   4              SET_KEY_LED(BACK_LIGHT);
+ 427   4            }
+ 428   3            SET_KEY_LED(LOCK_LED_MAP);
+ 429   3          }
+ 430   2          return (events ^ EVENT_KEY_LOCK_MSG);
+ 431   2        }
+ 432   1      
+ 433   1        if(events & EVENT_RESET_MSG){
+ 434   2          App_Obj.reset_det_flag = FALSE;
+ 435   2          osal_set_event(Pushrod_TaskGetID(), EVNET_PUSHROD_B_CLOSE);
+ 436   2          OSAL_StopTimer(Pushrod_TaskGetID(), EVNET_PUSHROD_A_CLOSE);
+ 437   2          OSAL_StartTimer(Pushrod_TaskGetID(), EVNET_PUSHROD_A_CLOSE, 100);
+ 438   2          return (events ^ EVENT_RESET_MSG);
+ 439   2        }
+ 440   1      
+ 441   1        if(events & EVENT_WARN_AUTO_CLS_MSG){
+ 442   2          WARN1_PIN = 0;
+ 443   2          App_Obj.warn_sta = False;
+ 444   2          CLR_KEY_LED(WARN_LED_MAP);
+ 445   2          return (events ^ EVENT_WARN_AUTO_CLS_MSG);
+ 446   2        }
+ 447   1      
+ 448   1        if(events & EVENT_MSGE_AUTO_CLS_MSG){
+ 449   2          App_Obj.moto_sta = False;
+ 450   2          CLR_KEY_LED(MSGE_LED_MAP);
+ 451   2          osal_set_event(Msge_TaskGetID(), EVENT_MSGE_A_CLOSE);
+ 452   2          return (events ^ EVENT_MSGE_AUTO_CLS_MSG);
+ 453   2        }
+ 454   1        
+ 455   1        if(events & EVENT_HEAT_AUTO_CLS_MSG){
+ 456   2          
+ 457   2          return (events ^ EVENT_HEAT_AUTO_CLS_MSG);
+ 458   2        }
+ 459   1      
+ 460   1        if(events & EVENT_COOL_AUTO_CLS_MSG){
+ 461   2          App_Obj.cool_flag = FALSE;
+ 462   2          CLR_KEY_LED(COOL_LED_MAP);
+ 463   2          osal_set_event(HeatCool_TaskGetID(), EVENT_HEAT_COOL_A_CLOSE);
+ 464   2          return (events ^ EVENT_COOL_AUTO_CLS_MSG);
+ 465   2        }
+ 466   1      
+ 467   1        if(events & EVENT_SYS_AUTO_CLS_MSG){
+ 468   2          App_Obj.sys_auto_cls_flag = True;
+ 469   2          App_Obj.lock_flag = True;
+ 470   2          App_Obj.led_sta = 0;
+ 471   2          #ifdef LED_FUNC_ENABLE
+ 472   2            LED1_PIN = F_LED_PIN = OFF;
+ 473   2            CLR_KEY_LED(BACK_LIGHT);
+ 474   2            App_Obj.foot_led_sta = False;
+ 475   2          #endif    
+ 476   2          
+ 477   2          #ifdef WARN_FUNC_ENABLE
+ 478   2            WARN1_PIN = OFF;
+ 479   2            App_Obj.warn_sta = False;     
+ 480   2            CLR_KEY_LED(WARN_LED_MAP);
+ 481   2          #endif
+ 482   2            
+ 483   2          #ifdef COOL_FUNC_ENABLE
+ 484   2            App_Obj.cool_flag = FALSE;
+ 485   2            CLR_KEY_LED(COOL_LED_MAP);
+ 486   2            osal_set_event(HeatCool_TaskGetID(), EVENT_HEAT_COOL_A_CLOSE);
+C51 COMPILER V9.59.0.0   APP_TASK                                                          09/21/2018 08:01:34 PAGE 9   
+
+ 487   2          #endif
+ 488   2          
+ 489   2          #if (PUSHROD_SUM > 0)
+ 490   2            osal_set_event(Pushrod_TaskGetID(),EVNET_PUSHROD_STOP);
+ 491   2          #endif
+ 492   2          
+ 493   2          #ifdef MSGE_FUNC_ENABLE
+ 494   2            App_Obj.moto_sta = False;
+ 495   2            CLR_KEY_LED(MSGE_LED_MAP);
+ 496   2            osal_set_event(Msge_TaskGetID(), EVENT_MSGE_A_CLOSE);
+ 497   2          #endif
+ 498   2          
+ 499   2          SET_KEY_LED(LOCK_LED_MAP);
+ 500   2          CLR_KEY_LED(~LOCK_LED_MAP);
+ 501   2          return (events ^ EVENT_SYS_AUTO_CLS_MSG);
+ 502   2        }
+ 503   1        
+ 504   1        if(events & EVENT_FAULT_ERROR_MSG){
+ 505   2          while(1); /*WDT reset*/
+ 506   2        }
+ 507   1        return 0;
+ 508   1      }
+ 509          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1779    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     15    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      8       6
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,76 @@
+C51 COMPILER V9.59.0.0   PUSHROD_TASK                                                      09/19/2018 08:04:12 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE PUSHROD_TASK
+OBJECT MODULE PLACED IN .\Objects\pushrod_task.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE ..\task\pushrod_task.c OPTIMIZE(9,SPEED) BROWSE INCDIR(..\app;..\port;..\t
+                    -ask;..\hal;..\osal) DEBUG OBJECTEXTEND PRINT(.\Listings\pushrod_task.lst) TABS(2) OBJECT(.\Objects\pushrod_task.obj)
+
+line level    source
+
+   1          #include "pushrod_task.h"
+   2          #include "sys_config.h"
+   3          
+   4          static unsigned char Pushrod_TaskID;
+   5          
+   6          unsigned char Pushrod_TaskInit(unsigned char task_id)
+   7          {
+   8   1        Pushrod_TaskID = task_id;
+   9   1        return True;
+  10   1      }
+  11          
+  12          unsigned int Pushrod_TaskProcessEvent(unsigned char task_id,unsigned int events)
+  13          {
+  14   1        (void) task_id;
+*** WARNING C275 IN LINE 14 OF ..\task\pushrod_task.c: expression with possibly no effect
+  15   1        if(events & EVNET_PUSHROD_STOP){
+  16   2          int i;
+  17   2          for(i = 0; i < PUSHROD_SUM;i ++){
+  18   3            Hal_PushrodControl(i,PUSHROD_CMD_STOP,0);
+  19   3          }
+  20   2          return (events ^ EVNET_PUSHROD_STOP);
+  21   2        }
+  22   1      
+  23   1        if(events & EVNET_PUSHROD_A_OPEN){
+  24   2          Hal_PushrodControl(PUSHROD_A,PUSHROD_CMD_OPEN,0);
+  25   2          return (events ^ EVNET_PUSHROD_A_OPEN);
+  26   2        }
+  27   1      
+  28   1        if(events & EVNET_PUSHROD_A_CLOSE){
+  29   2          Hal_PushrodControl(PUSHROD_A,PUSHROD_CMD_CLOSE,0);
+  30   2          return (events ^ EVNET_PUSHROD_A_CLOSE);
+  31   2        }
+  32   1      
+  33   1        if(events & EVNET_PUSHROD_B_OPEN){
+  34   2          Hal_PushrodControl(PUSHROD_B,PUSHROD_CMD_OPEN,0);
+  35   2          return (events ^ EVNET_PUSHROD_B_OPEN);
+  36   2        }
+  37   1      
+  38   1        if(events & EVNET_PUSHROD_B_CLOSE){
+  39   2          Hal_PushrodControl(PUSHROD_B,PUSHROD_CMD_CLOSE,0);
+  40   2          return (events ^ EVNET_PUSHROD_B_CLOSE);
+  41   2        }
+  42   1        
+  43   1        return 0;
+  44   1      }
+  45          
+  46          unsigned char Pushrod_TaskGetID(void)
+  47          {
+  48   1        return Pushrod_TaskID;
+  49   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    160    ----
+C51 COMPILER V9.59.0.0   PUSHROD_TASK                                                      09/19/2018 08:04:12 PAGE 2   
+
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      1       5
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

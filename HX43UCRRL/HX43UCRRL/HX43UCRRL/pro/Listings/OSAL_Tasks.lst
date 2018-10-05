@@ -1,0 +1,56 @@
+C51 COMPILER V9.59.0.0   OSAL_TASKS                                                        09/21/2018 08:01:34 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE OSAL_TASKS
+OBJECT MODULE PLACED IN .\Objects\OSAL_Tasks.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE ..\osal\OSAL_Tasks.c OPTIMIZE(9,SPEED) BROWSE INCDIR(..\app;..\port;..\tas
+                    -k;..\hal;..\osal) DEBUG OBJECTEXTEND PRINT(.\Listings\OSAL_Tasks.lst) TABS(2) OBJECT(.\Objects\OSAL_Tasks.obj)
+
+line level    source
+
+   1          #include "osal_tasks.h"
+   2          #include <string.h>
+   3          
+   4          #include "sys_config.h"
+   5          #include "pushrod_task.h"
+   6          #include "heat_cool_task.h"
+   7          #include "msge_task.h"
+   8          #include "app_task.h"
+   9          
+  10          
+  11          pTaskEventHandlerFn tasksArr[] =
+  12          {
+  13            Pushrod_TaskProcessEvent,
+  14            HeatCool_TaskProcessEvent,
+  15            Msge_TaskProcessEvent,
+  16            App_TaskProcessEvent,
+  17          };
+  18          
+  19          uint8 tasksCnt;
+  20          uint16 tasksEvents[sizeof(tasksArr) /sizeof(tasksArr[0])];
+  21          
+  22          void OSAL_InitTasks( void )
+  23          {
+  24   1        uint8 taskID = 0;
+  25   1        tasksCnt = sizeof(tasksArr) /sizeof(tasksArr[0]);
+  26   1        memset( tasksEvents, 0, sizeof(tasksEvents));
+  27   1        Pushrod_TaskInit(taskID ++);
+  28   1        HeatCool_TaskInit(taskID ++);
+  29   1        Msge_TaskInit(taskID ++);
+  30   1        App_TaskInit(taskID );
+  31   1      }
+  32          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     44    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     21       1
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

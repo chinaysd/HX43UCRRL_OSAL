@@ -1,0 +1,20 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\app_task.obj",
+".\Objects\heat_cool_task.obj",
+".\Objects\msge_task.obj",
+".\Objects\pushrod_task.obj",
+".\Objects\OSAL.obj",
+".\Objects\OSAL_Tasks.obj",
+".\Objects\OSAL_Timer.obj",
+".\Objects\port_pushrod.obj",
+".\Objects\port_heat_cool.obj",
+".\Objects\port_msge.obj",
+".\Objects\hal_pushrod.obj",
+".\Objects\hal_timer.obj",
+".\Objects\hal_heat_cool.obj",
+".\Objects\hal_msge.obj",
+".\Objects\hal_uart.obj",
+".\Objects\hal_init.obj" 
+TO ".\Objects\OSAL_Demo" 
+PRINT(".\Listings\OSAL_Demo.m51") RAMSIZE(256) 

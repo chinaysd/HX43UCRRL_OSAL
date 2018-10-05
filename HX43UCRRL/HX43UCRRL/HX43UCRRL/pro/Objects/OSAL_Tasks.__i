@@ -1,0 +1,1 @@
+"..\osal\OSAL_Tasks.c" OPTIMIZE (9,SPEED) BROWSE INCDIR(..\app;..\port;..\task;..\hal;..\osal) DEBUG OBJECTEXTEND PRINT(.\Listings\OSAL_Tasks.lst) TABS (2) OBJECT(.\Objects\OSAL_Tasks.obj)

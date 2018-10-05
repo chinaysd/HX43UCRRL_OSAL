@@ -1,0 +1,57 @@
+C51 COMPILER V9.59.0.0   MSGE_TASK                                                         09/19/2018 08:04:12 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE MSGE_TASK
+OBJECT MODULE PLACED IN .\Objects\msge_task.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE ..\task\msge_task.c OPTIMIZE(9,SPEED) BROWSE INCDIR(..\app;..\port;..\task
+                    -;..\hal;..\osal) DEBUG OBJECTEXTEND PRINT(.\Listings\msge_task.lst) TABS(2) OBJECT(.\Objects\msge_task.obj)
+
+line level    source
+
+   1          #include "msge_task.h"
+   2          
+   3          static unsigned char Msge_TaskID;
+   4          
+   5          unsigned char Msge_TaskInit(unsigned char task_id)
+   6          {
+   7   1        Msge_TaskID = task_id;
+   8   1        return SUCCEED; 
+   9   1      }
+  10          
+  11          unsigned int Msge_TaskProcessEvent(unsigned char task_id,unsigned int events)
+  12          {
+  13   1        (void)task_id;
+*** WARNING C275 IN LINE 13 OF ..\task\msge_task.c: expression with possibly no effect
+  14   1      
+  15   1        if(events & EVENT_MSGE_A_OPEN){
+  16   2          Hal_MsgeControl(0, MSGE_CMD_OPEN, 0);
+  17   2          return (events^EVENT_MSGE_A_OPEN);
+  18   2        }
+  19   1      
+  20   1        if(events & EVENT_MSGE_A_CLOSE){
+  21   2          Hal_MsgeControl(0, MSGE_CMD_CLOSE, 0);
+  22   2          return (events^EVENT_MSGE_A_CLOSE);
+  23   2        }
+  24   1      
+  25   1        return 0;
+  26   1      }
+  27          
+  28          unsigned char Msge_TaskGetID(void)
+  29          {
+  30   1        return Msge_TaskID;
+  31   1      }
+  32          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     62    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      1       3
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  1 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,45 @@
+C51 COMPILER V9.59.0.0   HAL_INIT                                                          09/21/2018 14:52:05 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE HAL_INIT
+OBJECT MODULE PLACED IN .\Objects\hal_init.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE ..\hal\hal_init.c OPTIMIZE(9,SPEED) BROWSE INCDIR(..\app;..\port;..\task;.
+                    -.\hal;..\osal) DEBUG OBJECTEXTEND PRINT(.\Listings\hal_init.lst) TABS(2) OBJECT(.\Objects\hal_init.obj)
+
+line level    source
+
+   1          #include "hal_init.h"
+   2          
+   3          
+   4          unsigned char App_TxBuf[7];
+   5          
+   6          void Hal_Init(void)
+   7          {
+   8   1        Hal_TimerInit();
+   9   1        Hal_MsgeInit(MSGE_SUM);
+  10   1        Hal_PushrodInit(PUSHROD_SUM);
+  11   1        Hal_HeatCoolInit(HEAT_COOL_SUM);
+  12   1        Hal_UartInit(UART0_ID, App_TxBuf, sizeof(App_TxBuf));
+  13   1      }
+  14          
+  15          void Hal_ProcessPoll(void)
+  16          {
+  17   1        Hal_MsgePoll(MSGE_SUM);
+  18   1      }
+  19          
+  20          
+  21          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     40    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      7    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

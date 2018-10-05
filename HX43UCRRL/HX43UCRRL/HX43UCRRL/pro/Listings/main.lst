@@ -1,0 +1,43 @@
+C51 COMPILER V9.59.0.0   MAIN                                                              09/27/2018 19:04:46 PAGE 1   
+
+
+C51 COMPILER V9.59.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\keil4\C51\BIN\C51.EXE main.c OPTIMIZE(9,SPEED) BROWSE INCDIR(..\app;..\port;..\task;..\hal;..\os
+                    -al) DEBUG OBJECTEXTEND PRINT(.\Listings\main.lst) TABS(2) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include "OSAL.h"
+   2          #include "osal_timer.h"
+   3          #include "osal_tasks.h"
+   4          #include "hal_init.h"
+   5          #include "sys_config.h"
+   6          
+   7          
+   8          void main(void)
+   9          { 
+  10   1        HAL_DISABLE_INTERRUPTS();
+  11   1        Hal_Init();
+  12   1        OSAL_TimerInit();
+  13   1        OSAL_InitTasks();
+  14   1        #ifdef WDT_FUNC_ENABLE
+  15   1          CLEAR_WDT();
+  16   1        #endif
+  17   1        HAL_ENABLE_INTERRUPTS();
+  18   1        osal_run_system();
+  19   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     19    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
